@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Идеи, когда скучно</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace" aria-labelledby="page-title">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Генератор идей</p>
+            <h1 id="page-title">Когда скучно</h1>
+          </div>
+          <button class="icon-button" id="settingsToggle" type="button" aria-label="Открыть настройки">
+            <span aria-hidden="true">⚙</span>
+          </button>
+        </div>
+
+        <section class="idea-stage" aria-live="polite">
+          <div class="idea-copy">
+            <div class="idea-meta" id="ideaMeta">подберем что-нибудь живое</div>
+            <h2 id="ideaTitle">Выбери интересы, и сайт начнет предлагать идеи под тебя.</h2>
+            <p id="ideaText">
+              Никаких “почитай книгу”. Тут будут маленькие задания, эксперименты, челленджи и поводы
+              сменить состояние.
+            </p>
+          </div>
+          <img src="assets/idea-visual.png" alt="" class="idea-visual" />
+        </section>
+
+        <div class="actions">
+          <button class="primary-button" id="generateBtn" type="button">Дай идею</button>
+          <button class="secondary-button" id="skipBtn" type="button">Не нравится, другую</button>
+          <button class="secondary-button" id="shareBtn" type="button">Поделиться</button>
+        </div>
+
+        <section class="history-panel" aria-labelledby="historyTitle">
+          <div class="section-heading">
+            <h2 id="historyTitle">История</h2>
+            <button class="text-button" id="clearHistoryBtn" type="button">Очистить</button>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </section>
+
+      <aside class="settings-panel" id="settingsPanel" aria-label="Настройки генератора">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Профиль</p>
+            <h2>Твой контекст</h2>
+          </div>
+          <button class="icon-button close-settings" id="closeSettings" type="button" aria-label="Закрыть настройки">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <form id="settingsForm">
+          <fieldset>
+            <legend>Интересы</legend>
+            <div class="chips" id="interestChips"></div>
+          </fieldset>
+
+          <label class="field">
+            <span>Время</span>
+            <select id="timeSelect">
+              <option value="quick">5-15 минут</option>
+              <option value="medium">30-60 минут</option>
+              <option value="deep">2 часа и больше</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Настроение</span>
+            <select id="moodSelect">
+              <option value="tired">усталость</option>
+              <option value="restless">хочется движухи</option>
+              <option value="curious">любопытство</option>
+              <option value="social">хочу к людям</option>
+              <option value="quiet">нужна тишина</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Энергия</span>
+            <input id="energyRange" type="range" min="1" max="5" value="3" />
+          </label>
+
+          <label class="toggle">
+            <input id="soloToggle" type="checkbox" checked />
+            <span>Можно делать одному</span>
+          </label>
+
+          <button class="primary-button full" type="submit">Сохранить</button>
+        </form>
+      </aside>
+
+      <section class="onboarding" id="onboarding" aria-labelledby="onboardingTitle">
+        <div class="onboarding-box">
+          <p class="eyebrow">Первый запуск</p>
+          <h2 id="onboardingTitle">Что тебе реально интересно?</h2>
+          <p>
+            Выбери несколько направлений. Потом их можно поменять в настройках.
+          </p>
+          <div class="chips onboarding-chips" id="onboardingChips"></div>
+          <button class="primary-button full" id="finishOnboarding" type="button">Начать</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="script.js"></script>
+  </body>
+</html>
