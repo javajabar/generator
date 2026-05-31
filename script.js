@@ -167,6 +167,7 @@ let state = {
   mood: "curious",
   energy: 3,
   solo: true,
+  useGemini: false,
   history: [],
   disliked: [],
   onboarded: false,
@@ -178,6 +179,8 @@ const els = {
   ideaMeta: document.querySelector("#ideaMeta"),
   ideaTitle: document.querySelector("#ideaTitle"),
   ideaText: document.querySelector("#ideaText"),
+  ideaStage: document.querySelector(".idea-stage"),
+  ideaVisual: document.querySelector(".idea-visual"),
   generateBtn: document.querySelector("#generateBtn"),
   skipBtn: document.querySelector("#skipBtn"),
   shareBtn: document.querySelector("#shareBtn"),
@@ -194,6 +197,7 @@ const els = {
   moodSelect: document.querySelector("#moodSelect"),
   energyRange: document.querySelector("#energyRange"),
   soloToggle: document.querySelector("#soloToggle"),
+  geminiToggle: document.querySelector("#geminiToggle"),
   historyList: document.querySelector("#historyList"),
   clearHistoryBtn: document.querySelector("#clearHistoryBtn"),
   toast: document.querySelector("#toast"),
@@ -231,6 +235,7 @@ function syncForm() {
   els.moodSelect.value = state.mood;
   els.energyRange.value = state.energy;
   els.soloToggle.checked = state.solo;
+  els.geminiToggle.checked = state.useGemini;
 
   renderChips(els.interestChips, state.interests, (interest) => {
     toggleInterest(interest);
@@ -282,7 +287,9 @@ function pickIdea(options = {}) {
 
 function showIdea(idea, addToHistory = true) {
   currentIdea = idea;
-  els.ideaMeta.textContent = `${idea.tags.slice(0, 3).join(" / ")} · энергия ${idea.energy}/5`;
+  const source = idea.source === "gemini" ? "Gemini" : "локальная база";
+  animateIdeaChange();
+  els.ideaMeta.textContent = `${idea.tags.slice(0, 3).join(" / ")} · энергия ${idea.energy}/5 · ${source}`;
   els.ideaTitle.textContent = idea.title;
   els.ideaText.textContent = idea.text;
 
@@ -301,13 +308,33 @@ function showIdea(idea, addToHistory = true) {
   }
 }
 
-function generateIdea() {
-  els.feedbackPanel.hidden = true;
-  lastRejectedIdea = null;
-  showIdea(pickIdea());
+function animateIdeaChange() {
+  els.ideaStage.classList.remove("is-entering");
+  els.ideaVisual.classList.remove("is-switching");
+  void els.ideaStage.offsetWidth;
+  els.ideaStage.classList.add("is-entering");
+  els.ideaVisual.classList.add("is-switching");
+  window.setTimeout(() => els.ideaVisual.classList.remove("is-switching"), 90);
 }
 
-function dislikeAndReplace(options = {}) {
+function addRipple(event) {
+  const button = event.currentTarget;
+  const rect = button.getBoundingClientRect();
+  const ripple = document.createElement("span");
+  ripple.className = "ripple";
+  ripple.style.left = `${event.clientX - rect.left}px`;
+  ripple.style.top = `${event.clientY - rect.top}px`;
+  button.append(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove());
+}
+
+async function generateIdea() {
+  els.feedbackPanel.hidden = true;
+  lastRejectedIdea = null;
+  showIdea(await getIdea());
+}
+
+async function dislikeAndReplace(options = {}) {
   const rejectedIdea = options.rejectedIdea || currentIdea;
   if (rejectedIdea && !state.disliked.includes(rejectedIdea.title)) {
     state.disliked = [...state.disliked, rejectedIdea.title].slice(-30);
@@ -316,8 +343,72 @@ function dislikeAndReplace(options = {}) {
   lastRejectedIdea = rejectedIdea;
   const excludeTitles = [rejectedIdea?.title, currentIdea?.title].filter(Boolean);
   const avoidTags = options.avoidCurrentTags && rejectedIdea ? rejectedIdea.tags : [];
-  showIdea(pickIdea({ ...options, excludeTitles, avoidTags, fresh: true }));
+  showIdea(await getIdea({ ...options, excludeTitles, avoidTags, fresh: true }));
   saveState();
+}
+
+async function getIdea(options = {}) {
+  if (!state.useGemini) {
+    return pickIdea(options);
+  }
+
+  els.generateBtn.disabled = true;
+  els.skipBtn.disabled = true;
+  showToast("Спрашиваю Gemini...");
+
+  try {
+    return await fetchGeminiIdea(options);
+  } catch (error) {
+    console.warn(error);
+    showToast("Gemini не ответил, беру локальную идею");
+    return pickIdea(options);
+  } finally {
+    els.generateBtn.disabled = false;
+    els.skipBtn.disabled = false;
+  }
+}
+
+async function fetchGeminiIdea(options = {}) {
+  const response = await fetch("/api/idea", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      interests: state.interests,
+      time: state.time,
+      mood: state.mood,
+      energy: state.energy,
+      solo: state.solo,
+      history: state.history.slice(0, 8).map((item) => item.title),
+      disliked: state.disliked.slice(-10),
+      excludeTitles: options.excludeTitles || [],
+      avoidCurrentTags: Boolean(options.avoidCurrentTags),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Idea API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.idea) throw new Error("Idea API returned empty idea");
+  return normalizeGeminiIdea(data.idea);
+}
+
+function normalizeGeminiIdea(idea) {
+  const tags = Array.isArray(idea.tags) && idea.tags.length > 0 ? idea.tags : ["gemini", "идея"];
+
+  return {
+    title: String(idea.title || "Необычная идея").slice(0, 80),
+    text: String(idea.text || "Попробуй маленький эксперимент на 10 минут и запиши, что изменилось.").slice(0, 520),
+    tags: tags.map((tag) => String(tag).toLowerCase()).slice(0, 3),
+    time: [state.time],
+    moods: [state.mood],
+    energy: Math.min(5, Math.max(1, Number(idea.energy) || Number(state.energy) || 3)),
+    solo: state.solo,
+    source: "gemini",
+  };
 }
 
 function renderHistory() {
@@ -378,7 +469,7 @@ function toggleOnboardingInterest(interest) {
   setupOnboarding();
 }
 
-function applyFeedback(type) {
+async function applyFeedback(type) {
   const feedbackActions = {
     shorter: () => {
       state.time = "quick";
@@ -408,7 +499,7 @@ function applyFeedback(type) {
   syncForm();
   const rejectedIdea = lastRejectedIdea || currentIdea;
   showIdea(
-    pickIdea({
+    await getIdea({
       excludeTitles: [rejectedIdea?.title, currentIdea?.title].filter(Boolean),
       avoidTags: type === "different" && rejectedIdea ? rejectedIdea.tags : [],
       fresh: true,
@@ -427,6 +518,7 @@ function init() {
   }
 
   els.generateBtn.addEventListener("click", generateIdea);
+  els.generateBtn.addEventListener("click", addRipple);
   els.skipBtn.addEventListener("click", () => {
     els.feedbackPanel.hidden = false;
     dislikeAndReplace({ avoidCurrentTags: true });
@@ -453,6 +545,7 @@ function init() {
     state.mood = els.moodSelect.value;
     state.energy = Number(els.energyRange.value);
     state.solo = els.soloToggle.checked;
+    state.useGemini = els.geminiToggle.checked;
     saveState();
     showToast("Настройки сохранены");
   });

@@ -1,6 +1,7 @@
 :root {
   color-scheme: light;
-  --bg: #f6f4ef;
+  --bg: #faf8f5;
+  --bg-end: #f0ede8;
   --surface: #fffdf8;
   --ink: #151412;
   --muted: #69655d;
@@ -10,6 +11,9 @@
   --coral: #e66b5b;
   --lemon: #f2c84b;
   --shadow: 0 24px 70px rgba(46, 39, 29, 0.13);
+  --idea-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --radius: 16px;
+  --button-radius: 12px;
 }
 
 * {
@@ -17,14 +21,44 @@
 }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink);
   background:
-    linear-gradient(135deg, rgba(31, 122, 118, 0.09), transparent 32%),
-    linear-gradient(315deg, rgba(230, 107, 91, 0.1), transparent 30%),
-    var(--bg);
+    radial-gradient(circle at 12% 18%, rgba(150, 126, 62, 0.22), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(123, 147, 105, 0.2), transparent 30%),
+    radial-gradient(circle at 84% 86%, rgba(235, 156, 128, 0.2), transparent 26%),
+    linear-gradient(135deg, var(--bg), var(--bg-end));
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  position: fixed;
+  z-index: -1;
+  width: 36vw;
+  height: 36vw;
+  min-width: 280px;
+  min-height: 280px;
+  border-radius: 50%;
+  content: "";
+  filter: blur(100px);
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+body::before {
+  top: -12vw;
+  left: -10vw;
+  background: #b48a3b;
+}
+
+body::after {
+  right: -12vw;
+  bottom: -12vw;
+  background: #e7a489;
 }
 
 button,
@@ -38,11 +72,30 @@ button {
 }
 
 .app-shell {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 22px;
   min-height: 100vh;
   padding: 28px;
+}
+
+.app-shell::before {
+  position: fixed;
+  top: 36vh;
+  right: 10vw;
+  z-index: -1;
+  width: 26vw;
+  height: 26vw;
+  min-width: 220px;
+  min-height: 220px;
+  border-radius: 50%;
+  background: #8fa783;
+  content: "";
+  filter: blur(100px);
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .workspace,
@@ -60,7 +113,7 @@ button {
   gap: 22px;
   min-width: 0;
   padding: clamp(20px, 3vw, 42px);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .topbar,
@@ -107,6 +160,27 @@ h1 {
   align-items: stretch;
   gap: 24px;
   min-height: 430px;
+  padding: clamp(16px, 2vw, 24px);
+  border: 1px solid rgba(222, 216, 202, 0.85);
+  border-radius: var(--radius);
+  background: rgba(255, 253, 248, 0.72);
+  box-shadow: var(--idea-shadow);
+}
+
+.idea-stage.is-entering {
+  animation: ideaFadeSlide 0.4s ease;
+}
+
+@keyframes ideaFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .idea-copy {
@@ -123,7 +197,7 @@ h1 {
   margin-bottom: 18px;
   padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--button-radius);
   color: var(--muted);
   background: rgba(255, 255, 255, 0.58);
   font-size: 0.9rem;
@@ -150,9 +224,16 @@ h1 {
   width: 100%;
   height: 100%;
   min-height: 320px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   object-fit: cover;
   border: 1px solid var(--line);
+  opacity: 1;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.idea-visual.is-switching {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .actions {
@@ -179,7 +260,7 @@ h1 {
   min-height: 34px;
   padding: 0 11px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--button-radius);
   color: var(--teal);
   background: rgba(255, 255, 255, 0.7);
   font-weight: 800;
@@ -195,16 +276,40 @@ h1 {
 .icon-button,
 .text-button {
   border: 0;
-  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .primary-button {
+  position: relative;
+  overflow: hidden;
   min-height: 48px;
   padding: 0 20px;
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   color: #fff;
   background: var(--teal);
   font-weight: 800;
+}
+
+.primary-button:active {
+  transform: scale(0.97);
+}
+
+.ripple {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.46);
+  transform: translate(-50%, -50%) scale(0);
+  animation: ripple 560ms ease-out;
+  pointer-events: none;
+}
+
+@keyframes ripple {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(28);
+  }
 }
 
 .primary-button:hover,
@@ -222,7 +327,7 @@ h1 {
   min-height: 48px;
   padding: 0 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   color: var(--ink);
   background: rgba(255, 255, 255, 0.62);
   font-weight: 700;
@@ -235,7 +340,7 @@ h1 {
   width: 44px;
   height: 44px;
   border: 1px solid var(--line);
-  border-radius: 50%;
+  border-radius: var(--button-radius);
   background: rgba(255, 255, 255, 0.72);
   color: var(--ink);
   font-size: 1.2rem;
@@ -264,7 +369,7 @@ h1 {
   min-height: 118px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.56);
 }
 
@@ -291,7 +396,7 @@ h1 {
   max-height: calc(100vh - 56px);
   overflow: auto;
   padding: 22px;
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 form,
@@ -324,10 +429,16 @@ legend,
   min-height: 38px;
   padding: 0 13px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--button-radius);
   color: var(--ink);
   background: rgba(255, 255, 255, 0.68);
   font-weight: 700;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+
+.chip:hover {
+  box-shadow: 0 10px 22px rgba(21, 20, 18, 0.09);
+  transform: scale(1.05);
 }
 
 .chip.is-selected {
@@ -350,7 +461,7 @@ select {
   min-height: 46px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   color: var(--ink);
   background: #fff;
 }
@@ -386,7 +497,7 @@ input[type="range"] {
 .onboarding-box {
   width: min(640px, 100%);
   padding: clamp(22px, 4vw, 36px);
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .onboarding-box h2 {
@@ -411,7 +522,7 @@ input[type="range"] {
   z-index: 20;
   max-width: min(380px, calc(100vw - 44px));
   padding: 13px 15px;
-  border-radius: 8px;
+  border-radius: var(--button-radius);
   color: #fff;
   background: var(--ink);
   opacity: 0;
@@ -433,14 +544,20 @@ input[type="range"] {
 
   .settings-panel {
     position: fixed;
-    inset: 14px;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 8;
-    display: none;
-    max-height: none;
+    display: block;
+    max-height: min(78vh, 680px);
+    border-radius: 24px 24px 0 0;
+    transform: translateY(calc(100% + 18px));
+    transition: transform 260ms ease;
   }
 
   .settings-panel.is-open {
-    display: block;
+    transform: translateY(0);
   }
 
   .idea-stage {
