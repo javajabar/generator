@@ -172,6 +172,7 @@ let state = {
   onboarded: false,
 };
 let currentIdea = null;
+let lastRejectedIdea = null;
 
 const els = {
   ideaMeta: document.querySelector("#ideaMeta"),
@@ -180,6 +181,7 @@ const els = {
   generateBtn: document.querySelector("#generateBtn"),
   skipBtn: document.querySelector("#skipBtn"),
   shareBtn: document.querySelector("#shareBtn"),
+  feedbackPanel: document.querySelector("#feedbackPanel"),
   settingsToggle: document.querySelector("#settingsToggle"),
   closeSettings: document.querySelector("#closeSettings"),
   settingsPanel: document.querySelector("#settingsPanel"),
@@ -243,25 +245,39 @@ function toggleInterest(interest) {
   saveState();
 }
 
-function scoreIdea(idea) {
+function scoreIdea(idea, options = {}) {
   const interestScore = idea.tags.filter((tag) => state.interests.includes(tag)).length * 5;
   const timeScore = idea.time.includes(state.time) ? 3 : 0;
   const moodScore = idea.moods.includes(state.mood) ? 3 : 0;
   const soloScore = state.solo || idea.solo ? 2 : -5;
   const energyScore = 4 - Math.abs(Number(state.energy) - idea.energy);
+  const avoidTagPenalty = idea.tags.filter((tag) => options.avoidTags?.includes(tag)).length * -4;
+  const excludePenalty = options.excludeTitles?.includes(idea.title) ? -200 : 0;
   const dislikedPenalty = state.disliked.includes(idea.title) ? -100 : 0;
-  const recentPenalty = state.history.slice(0, 5).some((item) => item.title === idea.title) ? -40 : 0;
-  return interestScore + timeScore + moodScore + soloScore + energyScore + dislikedPenalty + recentPenalty;
+  const recentLimit = options.fresh ? 8 : 5;
+  const recentPenalty = state.history.slice(0, recentLimit).some((item) => item.title === idea.title) ? -40 : 0;
+  return (
+    interestScore +
+    timeScore +
+    moodScore +
+    soloScore +
+    energyScore +
+    avoidTagPenalty +
+    excludePenalty +
+    dislikedPenalty +
+    recentPenalty
+  );
 }
 
-function pickIdea() {
+function pickIdea(options = {}) {
   const scored = ideaBank
-    .map((idea) => ({ idea, score: scoreIdea(idea) + Math.random() * 2 }))
+    .map((idea) => ({ idea, score: scoreIdea(idea, options) + Math.random() * 2 }))
     .sort((a, b) => b.score - a.score);
 
-  return scored[0].score < -20
-    ? ideaBank[Math.floor(Math.random() * ideaBank.length)]
-    : scored[0].idea;
+  if (scored[0].score >= -20) return scored[0].idea;
+
+  const fallbackPool = ideaBank.filter((idea) => !options.excludeTitles?.includes(idea.title));
+  return fallbackPool[Math.floor(Math.random() * fallbackPool.length)] || ideaBank[0];
 }
 
 function showIdea(idea, addToHistory = true) {
@@ -283,6 +299,25 @@ function showIdea(idea, addToHistory = true) {
     saveState();
     renderHistory();
   }
+}
+
+function generateIdea() {
+  els.feedbackPanel.hidden = true;
+  lastRejectedIdea = null;
+  showIdea(pickIdea());
+}
+
+function dislikeAndReplace(options = {}) {
+  const rejectedIdea = options.rejectedIdea || currentIdea;
+  if (rejectedIdea && !state.disliked.includes(rejectedIdea.title)) {
+    state.disliked = [...state.disliked, rejectedIdea.title].slice(-30);
+  }
+
+  lastRejectedIdea = rejectedIdea;
+  const excludeTitles = [rejectedIdea?.title, currentIdea?.title].filter(Boolean);
+  const avoidTags = options.avoidCurrentTags && rejectedIdea ? rejectedIdea.tags : [];
+  showIdea(pickIdea({ ...options, excludeTitles, avoidTags, fresh: true }));
+  saveState();
 }
 
 function renderHistory() {
@@ -343,6 +378,44 @@ function toggleOnboardingInterest(interest) {
   setupOnboarding();
 }
 
+function applyFeedback(type) {
+  const feedbackActions = {
+    shorter: () => {
+      state.time = "quick";
+      showToast("Ок, ищу что-то быстрее");
+    },
+    calmer: () => {
+      state.mood = "quiet";
+      state.energy = Math.max(1, Number(state.energy) - 1);
+      showToast("Ок, спокойнее");
+    },
+    active: () => {
+      state.mood = "restless";
+      state.energy = Math.min(5, Number(state.energy) + 1);
+      showToast("Ок, добавляю движения");
+    },
+    solo: () => {
+      state.solo = true;
+      showToast("Ок, без компании");
+    },
+    different: () => {
+      showToast("Ок, уходим в другую сторону");
+    },
+  };
+
+  feedbackActions[type]?.();
+  saveState();
+  syncForm();
+  const rejectedIdea = lastRejectedIdea || currentIdea;
+  showIdea(
+    pickIdea({
+      excludeTitles: [rejectedIdea?.title, currentIdea?.title].filter(Boolean),
+      avoidTags: type === "different" && rejectedIdea ? rejectedIdea.tags : [],
+      fresh: true,
+    })
+  );
+}
+
 function init() {
   loadState();
   syncForm();
@@ -353,12 +426,15 @@ function init() {
     showIdea(state.history[0], false);
   }
 
-  els.generateBtn.addEventListener("click", () => showIdea(pickIdea()));
+  els.generateBtn.addEventListener("click", generateIdea);
   els.skipBtn.addEventListener("click", () => {
-    if (currentIdea && !state.disliked.includes(currentIdea.title)) {
-      state.disliked = [...state.disliked, currentIdea.title].slice(-20);
-    }
-    showIdea(pickIdea());
+    els.feedbackPanel.hidden = false;
+    dislikeAndReplace({ avoidCurrentTags: true });
+  });
+  els.feedbackPanel.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-feedback]");
+    if (!button) return;
+    applyFeedback(button.dataset.feedback);
   });
   els.shareBtn.addEventListener("click", shareIdea);
   els.clearHistoryBtn.addEventListener("click", () => {
