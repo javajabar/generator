@@ -75,7 +75,7 @@ button {
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   min-height: 100vh;
   padding: 28px;
@@ -236,6 +236,10 @@ h1 {
   transform: translateY(8px);
 }
 
+.idea-visual.is-loading {
+  filter: saturate(0.9) blur(1px);
+}
+
 .actions {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -274,6 +278,7 @@ h1 {
 .primary-button,
 .secondary-button,
 .icon-button,
+.wave-button,
 .text-button {
   border: 0;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
@@ -333,6 +338,23 @@ h1 {
   font-weight: 700;
 }
 
+.wave-button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--button-radius);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.wave-button:hover {
+  border-color: rgba(31, 122, 118, 0.42);
+  box-shadow: 0 10px 24px rgba(21, 20, 18, 0.08);
+  transform: translateY(-1px);
+}
+
 .icon-button {
   display: grid;
   place-items: center;
@@ -389,14 +411,38 @@ h1 {
   color: var(--muted);
 }
 
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  background: rgba(21, 20, 18, 0.22);
+  backdrop-filter: blur(8px);
+}
+
+.settings-backdrop[hidden] {
+  display: none;
+}
+
 .settings-panel {
-  position: sticky;
-  top: 28px;
-  align-self: start;
-  max-height: calc(100vh - 56px);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(82vh, 720px);
   overflow: auto;
   padding: 22px;
   border-radius: var(--radius);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -46%) scale(0.98);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.settings-panel.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 form,
@@ -543,21 +589,8 @@ input[type="range"] {
   }
 
   .settings-panel {
-    position: fixed;
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 8;
-    display: block;
-    max-height: min(78vh, 680px);
-    border-radius: 24px 24px 0 0;
-    transform: translateY(calc(100% + 18px));
-    transition: transform 260ms ease;
-  }
-
-  .settings-panel.is-open {
-    transform: translateY(0);
+    width: min(520px, calc(100vw - 24px));
+    max-height: min(86vh, 720px);
   }
 
   .idea-stage {
@@ -572,9 +605,6 @@ input[type="range"] {
 }
 
 @media (min-width: 981px) {
-  .close-settings {
-    display: none;
-  }
 }
 
 @media (max-width: 560px) {

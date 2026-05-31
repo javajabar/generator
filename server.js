@@ -7,6 +7,7 @@ const port = Number(process.env.PORT) || 8090;
 loadEnv(path.join(root, ".env"));
 
 const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const imageModel = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 const apiKey = process.env.GEMINI_API_KEY;
 
 const mimeTypes = {
@@ -25,6 +26,11 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/idea") {
       await handleIdeaRequest(req, res);
+      return;
+    }
+
+    if (url.pathname === "/api/idea-image") {
+      await handleIdeaImageRequest(req, res);
       return;
     }
 
@@ -87,6 +93,52 @@ async function handleIdeaRequest(req, res) {
   sendJson(res, 200, { idea: normalizeIdea(JSON.parse(rawText)) });
 }
 
+async function handleIdeaImageRequest(req, res) {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "method_not_allowed" });
+    return;
+  }
+
+  if (!apiKey) {
+    sendJson(res, 503, { error: "missing_api_key" });
+    return;
+  }
+
+  const body = await readJson(req);
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1/models/${imageModel}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: buildImagePrompt(body) }] }],
+        generationConfig: {
+          responseModalities: ["TEXT", "IMAGE"],
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    sendJson(res, response.status, { error: "gemini_image_error", message: text.slice(0, 500) });
+    return;
+  }
+
+  const data = await response.json();
+  const imagePart = data.candidates?.[0]?.content?.parts?.find((part) => part.inlineData);
+  if (!imagePart?.inlineData?.data) {
+    sendJson(res, 502, { error: "empty_image_response" });
+    return;
+  }
+
+  const mimeType = imagePart.inlineData.mimeType || "image/png";
+  sendJson(res, 200, { image: `data:${mimeType};base64,${imagePart.inlineData.data}` });
+}
+
 function buildPrompt(context) {
   const recentTitles = list(context.history) || "нет";
   const dislikedTitles = list(context.disliked) || "нет";
@@ -136,6 +188,24 @@ function normalizeIdea(idea) {
     energy: Math.min(5, Math.max(1, Number(idea.energy) || 3)),
     source: "gemini",
   };
+}
+
+function buildImagePrompt(context) {
+  return `
+Create one polished editorial photo-style image for a Russian boredom idea generator card.
+
+Idea title: ${context.title || "Необычная идея"}
+Idea steps: ${context.text || ""}
+Tags: ${list(context.tags) || "curiosity, creative"}
+Mood: ${context.mood || "curious"}
+
+Visual direction:
+- warm minimal lifestyle photograph, not a poster
+- show objects or a small scene that clearly hints at the activity
+- no people faces, no readable text, no logos, no watermark
+- clean composition with soft daylight, cream background, sage/ochre/peach accents
+- landscape crop suitable for a website idea card
+`;
 }
 
 function serveStatic(urlPath, res) {

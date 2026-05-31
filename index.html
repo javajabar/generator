@@ -20,9 +20,7 @@
             <p class="eyebrow">Генератор идей</p>
             <h1 id="page-title">Когда скучно</h1>
           </div>
-          <button class="icon-button" id="settingsToggle" type="button" aria-label="Открыть настройки">
-            <span aria-hidden="true">⚙</span>
-          </button>
+          <button class="wave-button" id="settingsToggle" type="button">Настроить волну</button>
         </div>
 
         <section class="idea-stage" aria-live="polite">
@@ -61,7 +59,8 @@
         </section>
       </section>
 
-      <aside class="settings-panel" id="settingsPanel" aria-label="Настройки генератора">
+      <div class="settings-backdrop" id="settingsBackdrop" hidden></div>
+      <aside class="settings-panel" id="settingsPanel" aria-label="Настройки генератора" aria-modal="true">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Профиль</p>

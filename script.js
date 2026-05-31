@@ -174,6 +174,9 @@ let state = {
 };
 let currentIdea = null;
 let lastRejectedIdea = null;
+let imageRequestId = 0;
+const defaultIdeaImage = "assets/idea-visual.png";
+const ideaImageCache = new Map();
 
 const els = {
   ideaMeta: document.querySelector("#ideaMeta"),
@@ -187,6 +190,7 @@ const els = {
   feedbackPanel: document.querySelector("#feedbackPanel"),
   settingsToggle: document.querySelector("#settingsToggle"),
   closeSettings: document.querySelector("#closeSettings"),
+  settingsBackdrop: document.querySelector("#settingsBackdrop"),
   settingsPanel: document.querySelector("#settingsPanel"),
   settingsForm: document.querySelector("#settingsForm"),
   interestChips: document.querySelector("#interestChips"),
@@ -292,6 +296,7 @@ function showIdea(idea, addToHistory = true) {
   els.ideaMeta.textContent = `${idea.tags.slice(0, 3).join(" / ")} · энергия ${idea.energy}/5 · ${source}`;
   els.ideaTitle.textContent = idea.title;
   els.ideaText.textContent = idea.text;
+  updateIdeaImage(idea);
 
   if (addToHistory) {
     state.history = [
@@ -306,6 +311,76 @@ function showIdea(idea, addToHistory = true) {
     saveState();
     renderHistory();
   }
+}
+
+async function updateIdeaImage(idea) {
+  const requestId = ++imageRequestId;
+  const cacheKey = `${idea.title}|${idea.text}`;
+
+  if (!state.useGemini) {
+    setIdeaImage(defaultIdeaImage, "");
+    return;
+  }
+
+  if (ideaImageCache.has(cacheKey)) {
+    setIdeaImage(ideaImageCache.get(cacheKey), idea.title);
+    return;
+  }
+
+  els.ideaVisual.classList.add("is-loading");
+
+  try {
+    const imageUrl = await fetchIdeaImage(idea);
+    if (requestId !== imageRequestId) return;
+    ideaImageCache.set(cacheKey, imageUrl);
+    setIdeaImage(imageUrl, idea.title);
+  } catch (error) {
+    console.warn(error);
+    if (requestId === imageRequestId) setIdeaImage(defaultIdeaImage, "");
+  } finally {
+    if (requestId === imageRequestId) els.ideaVisual.classList.remove("is-loading");
+  }
+}
+
+async function fetchIdeaImage(idea) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  let response;
+
+  try {
+    response = await fetch("/api/idea-image", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: idea.title,
+        text: idea.text,
+        tags: idea.tags,
+        mood: state.mood,
+      }),
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Idea image API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.image) throw new Error("Idea image API returned empty image");
+  return data.image;
+}
+
+function setIdeaImage(src, alt) {
+  els.ideaVisual.classList.add("is-switching");
+  window.setTimeout(() => {
+    els.ideaVisual.src = src;
+    els.ideaVisual.alt = alt ? `Визуализация идеи: ${alt}` : "";
+    els.ideaVisual.classList.remove("is-switching");
+  }, 120);
 }
 
 function animateIdeaChange() {
@@ -326,6 +401,16 @@ function addRipple(event) {
   ripple.style.top = `${event.clientY - rect.top}px`;
   button.append(ripple);
   ripple.addEventListener("animationend", () => ripple.remove());
+}
+
+function openSettings() {
+  els.settingsBackdrop.hidden = false;
+  els.settingsPanel.classList.add("is-open");
+}
+
+function closeSettingsMenu() {
+  els.settingsPanel.classList.remove("is-open");
+  els.settingsBackdrop.hidden = true;
 }
 
 async function generateIdea() {
@@ -369,23 +454,32 @@ async function getIdea(options = {}) {
 }
 
 async function fetchGeminiIdea(options = {}) {
-  const response = await fetch("/api/idea", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      interests: state.interests,
-      time: state.time,
-      mood: state.mood,
-      energy: state.energy,
-      solo: state.solo,
-      history: state.history.slice(0, 8).map((item) => item.title),
-      disliked: state.disliked.slice(-10),
-      excludeTitles: options.excludeTitles || [],
-      avoidCurrentTags: Boolean(options.avoidCurrentTags),
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 9000);
+  let response;
+
+  try {
+    response = await fetch("/api/idea", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        interests: state.interests,
+        time: state.time,
+        mood: state.mood,
+        energy: state.energy,
+        solo: state.solo,
+        history: state.history.slice(0, 8).map((item) => item.title),
+        disliked: state.disliked.slice(-10),
+        excludeTitles: options.excludeTitles || [],
+        avoidCurrentTags: Boolean(options.avoidCurrentTags),
+      }),
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(`Idea API error: ${response.status}`);
@@ -536,8 +630,12 @@ function init() {
     showToast("История очищена");
   });
 
-  els.settingsToggle.addEventListener("click", () => els.settingsPanel.classList.toggle("is-open"));
-  els.closeSettings.addEventListener("click", () => els.settingsPanel.classList.remove("is-open"));
+  els.settingsToggle.addEventListener("click", openSettings);
+  els.closeSettings.addEventListener("click", closeSettingsMenu);
+  els.settingsBackdrop.addEventListener("click", closeSettingsMenu);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeSettingsMenu();
+  });
 
   els.settingsForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -548,6 +646,7 @@ function init() {
     state.useGemini = els.geminiToggle.checked;
     saveState();
     showToast("Настройки сохранены");
+    closeSettingsMenu();
   });
 
   els.finishOnboarding.addEventListener("click", () => {
